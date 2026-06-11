@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>방장(교사) 대시보드 - 위기 관리 모의투자</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="bg-gray-900 text-white min-h-screen flex flex-col">
+    <header class="bg-gray-800 border-b border-gray-700 py-4 px-6 flex justify-between items-center shadow-md">
+        <h1 class="text-2xl font-bold text-yellow-400">📊 교사 대시보드</h1>
+        <div class="flex items-center gap-4">
+            <div class="text-lg">방 코드: <span id="displayRoomCode" class="font-mono bg-gray-700 px-3 py-1 rounded text-green-400 font-bold tracking-widest text-xl">----</span></div>
+            <button id="exportExcelBtn" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded font-semibold transition disabled:opacity-50">최종 결과 엑셀 다운로드</button>
+        </div>
+    </header>
+
+    <main class="flex-grow p-6 flex flex-col lg:flex-row gap-6">
+        <!-- 메인 대시보드 (차트 및 컨트롤) -->
+        <section class="flex-grow space-y-6">
+            <div class="bg-gray-800 p-6 rounded-xl shadow-lg">
+                <h2 class="text-xl font-semibold mb-4 text-blue-300">📈 실시간 주가 차트</h2>
+                <div class="relative h-96 w-full">
+                    <canvas id="stockChart"></canvas>
+                </div>
+            </div>
+
+            <div class="bg-gray-800 p-6 rounded-xl shadow-lg">
+                <h2 class="text-xl font-semibold mb-4 text-blue-300">🏢 모둠 제어 및 주가 현황</h2>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="border-b border-gray-600">
+                                <th class="p-3">모둠명</th>
+                                <th class="p-3">현재 주가</th>
+                                <th class="p-3">👍 긍정</th>
+                                <th class="p-3">👎 부정</th>
+                                <th class="p-3">발표 제어</th>
+                            </tr>
+                        </thead>
+                        <tbody id="teamListBody">
+                            <!-- JS로 동적 생성 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <div class="bg-gray-800 p-6 rounded-xl shadow-lg h-64 flex flex-col">
+                <h2 class="text-xl font-semibold mb-4 text-blue-300">💬 실시간 학생 의견</h2>
+                <div id="chatBox" class="flex-grow overflow-y-auto space-y-2 bg-gray-900 p-3 rounded">
+                    <!-- 채팅 메시지 표시 영역 -->
+                </div>
+            </div>
+        </section>
+
+        <!-- 사이드바 (접속자 목록) -->
+        <aside class="w-full lg:w-80 space-y-6 flex-shrink-0">
+            <div class="bg-gray-800 p-6 rounded-xl shadow-lg h-full max-h-[800px] flex flex-col">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold text-green-300">👨‍🎓 접속 학생</h2>
+                    <span id="studentCount" class="bg-gray-700 text-sm px-2 py-1 rounded-full">0명</span>
+                </div>
+                <div id="studentList" class="flex-grow overflow-y-auto space-y-2 pr-2">
+                    <!-- JS로 동적 생성 -->
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <footer class="bg-gray-800 border-t border-gray-700 text-center py-4 text-sm text-gray-400 mt-auto">
+        <p>만든 사람: 경기도 지구과학 교사 뀨짱</p>
+        <p class="mt-1">
+            <a href="https://open.kakao.com/o/s7hVU65h" target="_blank" class="text-blue-400 hover:underline">문의: 카카오톡 오픈채팅</a> |
+            <a href="https://eduarchive.tistory.com/" target="_blank" class="text-blue-400 hover:underline">블로그: 뀨짱쌤의 교육자료 아카이브</a>
+        </p>
+    </footer>
+
+    <script src="/js/teacher.js"></script>
+</body>
+</html>

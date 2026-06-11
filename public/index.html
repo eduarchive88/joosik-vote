@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>위기 관리 모의투자</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="bg-gray-900 text-white min-h-screen flex flex-col justify-between">
+    <main class="flex-grow flex items-center justify-center p-4">
+        <div class="bg-gray-800 p-8 rounded-xl shadow-2xl w-full max-w-md">
+            <h1 class="text-3xl font-bold text-center mb-8 text-blue-400">위기 관리 모의투자</h1>
+            
+            <div class="space-y-6">
+                <!-- 학생 참여 -->
+                <div class="border-b border-gray-700 pb-6">
+                    <h2 class="text-xl font-semibold mb-4 text-green-400">학생 입장</h2>
+                    <form id="joinForm" class="space-y-3">
+                        <div>
+                            <label class="block text-sm mb-1">입장 코드</label>
+                            <input type="text" id="roomCode" class="w-full bg-gray-700 rounded p-2 text-white uppercase" placeholder="예: A1B2C" required>
+                        </div>
+                        <div>
+                            <label class="block text-sm mb-1">학번 (5자리 숫자)</label>
+                            <input type="text" id="studentId" class="w-full bg-gray-700 rounded p-2 text-white" pattern="\d{5}" placeholder="예: 31101" required title="학번은 하이픈 없이 5자리 숫자로 입력해야 합니다.">
+                        </div>
+                        <div>
+                            <label class="block text-sm mb-1">이름</label>
+                            <input type="text" id="studentName" class="w-full bg-gray-700 rounded p-2 text-white" placeholder="이름" required>
+                        </div>
+                        <button type="submit" class="w-full bg-green-600 hover:bg-green-700 py-2 rounded font-bold transition">입장하기</button>
+                    </form>
+                </div>
+
+                <!-- 교사 방 생성 -->
+                <div>
+                    <h2 class="text-xl font-semibold mb-4 text-yellow-400">교사 (방 만들기)</h2>
+                    <form id="createForm" class="space-y-3">
+                        <div>
+                            <label class="block text-sm mb-1">모둠 수</label>
+                            <input type="number" id="numTeams" class="w-full bg-gray-700 rounded p-2 text-white" value="4" min="1" max="10" required>
+                        </div>
+                        <div>
+                            <label class="block text-sm mb-1">학생 지급 초기 투자금 (원)</label>
+                            <input type="number" id="initialCash" class="w-full bg-gray-700 rounded p-2 text-white" value="100000" step="10000" min="10000" required>
+                        </div>
+                        <button type="submit" class="w-full bg-yellow-600 hover:bg-yellow-700 py-2 rounded font-bold transition">새 방 만들기</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="bg-gray-800 text-center py-4 text-sm text-gray-400">
+        <p>만든 사람: 경기도 지구과학 교사 뀨짱</p>
+        <p class="mt-1">
+            <a href="https://open.kakao.com/o/s7hVU65h" target="_blank" class="text-blue-400 hover:underline">문의: 카카오톡 오픈채팅</a> |
+            <a href="https://eduarchive.tistory.com/" target="_blank" class="text-blue-400 hover:underline">블로그: 뀨짱쌤의 교육자료 아카이브</a>
+        </p>
+    </footer>
+
+    <script src="/js/common.js"></script>
+</body>
+</html>

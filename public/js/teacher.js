@@ -225,7 +225,7 @@ window.setPresentation = function(teamId, status) {
 };
 
 // ─── 초기 방 상태 로드 ───────────────────────────────────────────────
-socket.emit('requestRoomState', roomCode, (response) => {
+socket.emit('requestRoomState', { roomCode, role: 'teacher' }, (response) => {
     if (response.success) {
         roomData = response.roomData;
         initChart(roomData.teams);

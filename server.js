@@ -297,10 +297,17 @@ io.on('connection', (socket) => {
         callback({ success: true, cash: student.cash, portfolio: student.portfolio });
     });
 
-    // 8. 교사 방의 현재 상태 요청
-    socket.on('requestRoomState', (roomCode, callback) => {
+    // 8. 교사 방의 현재 상태 요청 (재접속 포함)
+    socket.on('requestRoomState', ({ roomCode, role: reqRole }, callback) => {
         const room = rooms[roomCode];
-        if(room) {
+        if (room) {
+            if (reqRole === 'teacher') {
+                // 교사가 페이지를 새로고침 했을 때 host 갱신 및 방 재참가
+                room.host = socket.id;
+                socket.join(roomCode);
+                socket.roomCode = roomCode;
+                socket.role = 'teacher';
+            }
             callback({ success: true, roomData: room });
         } else {
             callback({ success: false });

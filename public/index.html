@@ -39,6 +39,10 @@
                     <h2 class="text-xl font-semibold mb-4 text-yellow-400">교사 (방 만들기)</h2>
                     <form id="createForm" class="space-y-3">
                         <div>
+                            <label class="block text-sm mb-1">사용자 지정 방 코드 (선택)</label>
+                            <input type="text" id="customRoomCode" class="w-full bg-gray-700 rounded p-2 text-white uppercase" placeholder="입력하지 않으면 랜덤 생성">
+                        </div>
+                        <div>
                             <label class="block text-sm mb-1">모둠 수</label>
                             <input type="number" id="numTeams" class="w-full bg-gray-700 rounded p-2 text-white" value="4" min="1" max="10" required>
                         </div>

@@ -39,8 +39,14 @@ io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
 
     // 1. 방장(교사) 방 생성
-    socket.on('createRoom', ({ numTeams, initialCash }, callback) => {
-        const roomCode = generateRoomCode();
+    socket.on('createRoom', ({ numTeams, initialCash, customRoomCode }, callback) => {
+        let roomCode = generateRoomCode();
+        if (customRoomCode && customRoomCode.trim() !== '') {
+            roomCode = customRoomCode.trim().toUpperCase();
+            if (rooms[roomCode]) {
+                return callback({ success: false, message: '이미 사용 중인 방 코드입니다. 다른 코드를 입력하세요.' });
+            }
+        }
         
         const teams = {};
         for(let i=1; i<=numTeams; i++) {
@@ -83,11 +89,29 @@ io.on('connection', (socket) => {
             return callback({ success: false, message: '학번은 하이픈(-) 없이 5자리 숫자로 입력해야 합니다.' });
         }
 
-        // 중복 학번 체크
+        // 중복 학번 체크 (재접속 허용 로직)
+        let existingSocketId = null;
         for (let sid in room.students) {
             if (room.students[sid].studentId === studentId) {
-                return callback({ success: false, message: '이미 접속 중인 학번입니다.' });
+                existingSocketId = sid;
+                break;
             }
+        }
+
+        if (existingSocketId) {
+            // 기존 데이터 백업 후 새로운 socket id로 이동 (새로고침/재접속 대응)
+            const oldData = room.students[existingSocketId];
+            oldData.socketId = socket.id;
+            oldData.studentName = studentName; // 이름이 바뀌었을 수도 있으니 업데이트
+            room.students[socket.id] = oldData;
+            delete room.students[existingSocketId];
+            
+            socket.join(roomCode);
+            socket.roomCode = roomCode;
+            socket.role = 'student';
+
+            io.to(room.host).emit('studentJoined', room.students[socket.id]);
+            return callback({ success: true, roomData: room, studentData: room.students[socket.id] });
         }
 
         // 초기 포트폴리오 세팅 (모든 모둠 주식 1주씩)

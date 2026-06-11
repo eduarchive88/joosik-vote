@@ -32,8 +32,9 @@ if (createForm) {
         e.preventDefault();
         const numTeams = document.getElementById('numTeams').value;
         const initialCash = document.getElementById('initialCash').value;
+        const customRoomCode = document.getElementById('customRoomCode').value;
 
-        socket.emit('createRoom', { numTeams, initialCash }, (response) => {
+        socket.emit('createRoom', { numTeams, initialCash, customRoomCode }, (response) => {
             if (response.success) {
                 // sessionStorage에 데이터 저장
                 sessionStorage.setItem('roomCode', response.roomCode);

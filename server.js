@@ -65,7 +65,9 @@ io.on('connection', (socket) => {
             teams: teams,
             students: {},
             currentPresentation: null, // 현재 발표 중인 모둠 ID
-            chats: [] // { sender, message, teamId }
+            // 게임 단계: 'waiting'(대기) | 'presentation'(발표중) | 'trading'(매매중) | 'ended'(종료)
+            phase: 'waiting',
+            chats: [] // { sender, message, type, teamId, teamName }
         };
 
         socket.join(roomCode);
@@ -102,7 +104,7 @@ io.on('connection', (socket) => {
             // 기존 데이터 백업 후 새로운 socket id로 이동 (새로고침/재접속 대응)
             const oldData = room.students[existingSocketId];
             oldData.socketId = socket.id;
-            oldData.studentName = studentName; // 이름이 바뀌었을 수도 있으니 업데이트
+            oldData.studentName = studentName;
             room.students[socket.id] = oldData;
             delete room.students[existingSocketId];
             
@@ -147,22 +149,44 @@ io.on('connection', (socket) => {
 
         if (status === 'start') {
             room.currentPresentation = teamId;
+            room.phase = 'presentation';
         } else if (status === 'end') {
             room.currentPresentation = null;
+            room.phase = 'waiting';
         }
 
-        io.to(roomCode).emit('presentationStatusChanged', { teamId, status });
+        io.to(roomCode).emit('presentationStatusChanged', {
+            teamId,
+            status,
+            phase: room.phase
+        });
     });
 
-    // 4. 학생: 실시간 투표 (발표 중)
+    // 4. 교사: 게임 단계 전환 (매매 시작 / 매매 종료)
+    socket.on('setPhase', ({ roomCode, phase }, callback) => {
+        const room = rooms[roomCode];
+        if (!room || room.host !== socket.id) return;
+
+        // 매매 시작 전에 발표 중이면 발표 종료
+        if (phase === 'trading') {
+            room.currentPresentation = null;
+        }
+        room.phase = phase;
+
+        io.to(roomCode).emit('phaseChanged', { phase });
+        if (callback) callback({ success: true });
+    });
+
+    // 5. 학생: 실시간 투표 (발표 중에만 허용)
     socket.on('vote', ({ roomCode, teamId, type, reason }) => {
         const room = rooms[roomCode];
-        if (!room || room.currentPresentation !== teamId) return; // 발표 중이 아닐 때 투표 불가
+        // 발표 중이며 해당 모둠이 발표 중일 때만 허용
+        if (!room || room.phase !== 'presentation' || room.currentPresentation !== teamId) return;
         
         const student = room.students[socket.id];
         if (!student) return;
 
-        // 쿨타임 체크 (예: 5초)
+        // 쿨타임 체크 (5초)
         const now = Date.now();
         if (now - student.lastVoteTime < 5000) {
             socket.emit('voteError', { message: '투표 쿨타임 중입니다. 잠시 후 다시 시도하세요.' });
@@ -186,13 +210,14 @@ io.on('connection', (socket) => {
         
         team.history.push(team.price);
 
-        // 채팅으로 이유 전송
+        // 이유가 있으면 채팅으로 전송 (모둠 정보 포함)
         if (reason && reason.trim() !== '') {
             const chatMsg = {
                 sender: `${student.studentId} ${student.studentName}`,
                 message: reason,
                 type: type,
-                teamId: teamId
+                teamId: teamId,
+                teamName: team.name
             };
             room.chats.push(chatMsg);
             io.to(roomCode).emit('newChat', chatMsg);
@@ -202,31 +227,36 @@ io.on('connection', (socket) => {
         io.to(roomCode).emit('priceUpdated', { teamId, price: team.price, history: team.history, votes: team.votes });
     });
 
-    // 5. 학생: 채팅 (이유 작성)
+    // 6. 학생: 채팅 (발표 중에만 허용, 모둠 정보 포함)
     socket.on('chatMessage', ({ roomCode, message }) => {
         const room = rooms[roomCode];
         if (!room) return;
+        // 발표 중이 아니면 채팅 불가
+        if (room.phase !== 'presentation') return;
+
         const student = room.students[socket.id];
         if (!student) return;
 
+        const presentingTeam = room.currentPresentation ? room.teams[room.currentPresentation] : null;
         const chatMsg = {
             sender: `${student.studentId} ${student.studentName}`,
             message: message,
-            type: 'neutral'
+            type: 'neutral',
+            teamId: room.currentPresentation || null,
+            teamName: presentingTeam ? presentingTeam.name : null
         };
         room.chats.push(chatMsg);
         io.to(roomCode).emit('newChat', chatMsg);
     });
 
-    // 6. 학생: 주식 매수/매도 (발표 후)
+    // 7. 학생: 주식 매수/매도 (매매 단계에만 허용)
     socket.on('trade', ({ roomCode, teamId, action, amount }, callback) => {
         const room = rooms[roomCode];
         if (!room) return;
         
-        // 발표 중일 때는 매매 불가 (요구사항: 발표 직후)
-        // 단, 교사가 발표 종료를 누른 후에만 가능하도록 할 수도 있으나, 현재 발표중인 팀이 아니면 가능하도록 설정
-        if (room.currentPresentation === teamId) {
-            return callback({ success: false, message: '현재 발표 진행 중인 모둠은 매매할 수 없습니다.' });
+        // 매매 단계가 아닐 때는 거래 불가
+        if (room.phase !== 'trading') {
+            return callback({ success: false, message: '현재 매매 단계가 아닙니다. 교사의 매매 시작 안내를 기다려주세요.' });
         }
 
         const student = room.students[socket.id];
@@ -267,7 +297,7 @@ io.on('connection', (socket) => {
         callback({ success: true, cash: student.cash, portfolio: student.portfolio });
     });
 
-    // 교사 방의 현재 상태 요청
+    // 8. 교사 방의 현재 상태 요청
     socket.on('requestRoomState', (roomCode, callback) => {
         const room = rooms[roomCode];
         if(room) {
@@ -283,13 +313,8 @@ io.on('connection', (socket) => {
             const room = rooms[socket.roomCode];
             if (room) {
                 if (room.host === socket.id) {
-                    // 방장이 나가면 방 폭파 (옵션)
-                    // io.to(socket.roomCode).emit('roomDestroyed');
-                    // delete rooms[socket.roomCode];
+                    // 방장이 나가도 방은 유지 (학생 데이터 보존)
                 } else if (room.students[socket.id]) {
-                    // 학생 접속 종료 (데이터는 남겨둘 수도 있고 지울 수도 있음)
-                    // 현재는 세션 복구를 지원하지 않으므로 삭제 안함 (재접속 불가하므로 삭제하는게 맞을지도)
-                    // 여기선 단순히 교사에게 알림만
                     io.to(room.host).emit('studentLeft', socket.id);
                 }
             }

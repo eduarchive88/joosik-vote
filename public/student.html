@@ -14,28 +14,49 @@
             <h1 class="text-lg font-bold text-green-400">📈 모의투자</h1>
             <div class="text-xs text-gray-400" id="studentInfo">---- / ---</div>
         </div>
-        <div class="text-right">
-            <div class="text-xs text-gray-400">내 현금 잔고</div>
-            <div class="text-xl font-mono font-bold text-yellow-300" id="myCash">0원</div>
+        <div class="flex items-center gap-3">
+            <!-- 게임 단계 배지 -->
+            <span id="phaseBadge" class="text-xs font-bold px-2 py-1 rounded-full bg-gray-600 text-gray-300">⏳ 대기 중</span>
+            <div class="text-right">
+                <div class="text-xs text-gray-400">내 현금 잔고</div>
+                <div class="text-xl font-mono font-bold text-yellow-300" id="myCash">0원</div>
+            </div>
         </div>
     </header>
 
-    <main class="flex-grow p-4 space-y-6">
-        <!-- 현재 발표 중 UI -->
+    <main class="flex-grow p-4 space-y-4">
+        <!-- 대기 안내 배너 (발표 전 / 매매 종료 후) -->
+        <section id="waitingBanner" class="bg-gray-700 p-4 rounded-xl text-center text-gray-300 hidden">
+            <p id="waitingMsg" class="text-lg">⏳ 교사의 안내를 기다려주세요.</p>
+        </section>
+
+        <!-- 현재 발표 중 UI (발표 단계에만 표시) -->
         <section id="presentationSection" class="bg-gray-800 p-4 rounded-xl shadow-lg border border-blue-500 hidden relative overflow-hidden">
             <div class="absolute top-0 right-0 bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded-bl-lg animate-pulse">발표 중</div>
             <h2 class="text-lg font-semibold mb-2 text-blue-300">🎤 현재 발표: <span id="currentTeamName" class="text-white">---</span></h2>
             
             <div class="flex gap-4 mb-4">
-                <button onclick="vote('up')" class="flex-1 bg-green-600 hover:bg-green-700 py-4 rounded-xl font-bold text-2xl transition shadow-lg active:scale-95">👍 긍정</button>
-                <button onclick="vote('down')" class="flex-1 bg-red-600 hover:bg-red-700 py-4 rounded-xl font-bold text-2xl transition shadow-lg active:scale-95">👎 부정</button>
+                <button id="voteUpBtn" onclick="vote('up')" class="flex-1 bg-green-600 hover:bg-green-700 py-4 rounded-xl font-bold text-2xl transition shadow-lg active:scale-95">👍 긍정</button>
+                <button id="voteDownBtn" onclick="vote('down')" class="flex-1 bg-red-600 hover:bg-red-700 py-4 rounded-xl font-bold text-2xl transition shadow-lg active:scale-95">👎 부정</button>
             </div>
             
             <form id="voteReasonForm" class="flex gap-2">
-                <input type="text" id="voteReason" class="flex-grow bg-gray-700 rounded-lg p-2 text-white text-sm" placeholder="평가 이유를 입력하세요 (선택)" autocomplete="off">
+                <input type="text" id="voteReason" class="flex-grow bg-gray-700 rounded-lg p-2 text-white text-sm" placeholder="의견을 입력하고 전송하세요" autocomplete="off">
                 <button type="submit" class="bg-blue-600 px-4 py-2 rounded-lg font-bold text-sm">전송</button>
             </form>
             <div id="voteMessage" class="text-xs text-red-400 mt-2 hidden"></div>
+        </section>
+
+        <!-- 매매 단계 안내 배너 -->
+        <section id="tradingBanner" class="bg-yellow-900 border border-yellow-500 p-4 rounded-xl text-center hidden">
+            <p class="text-yellow-300 font-bold text-lg">💹 지금은 주식 매매 시간입니다!</p>
+            <p class="text-yellow-400 text-sm mt-1">아래에서 매수/매도 버튼을 눌러 거래하세요.</p>
+        </section>
+
+        <!-- 매매 종료 안내 배너 -->
+        <section id="endedBanner" class="bg-red-900 border border-red-500 p-4 rounded-xl text-center hidden">
+            <p class="text-red-300 font-bold text-lg">🏁 모의투자가 종료되었습니다!</p>
+            <p class="text-red-400 text-sm mt-1">최종 결과를 확인하세요.</p>
         </section>
 
         <!-- 내 포트폴리오 및 시장 현황 -->

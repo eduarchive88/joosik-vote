@@ -21,19 +21,36 @@ let currentVoteRecord = { count: 0, types: [] };
 const MAX_CLICKS = 10;
 let pendingPostEvalTeamId = null; // 사후 평가 대기 중인 팀 ID
 
-// ─── 방 접속 ─────────────────────────────────────────────────────────
-socket.emit('joinRoom', { roomCode, studentId, studentName }, (response) => {
-    if (response.success) {
-        teams = response.roomData.teams;
-        currentPresentation = response.roomData.currentPresentation;
-        currentPhase = response.roomData.phase || 'waiting';
+// ─── 방 접속 및 재접속 처리 ──────────────────────────────────────────
+socket.on('connect', () => {
+    socket.emit('joinRoom', { roomCode, studentId, studentName }, (response) => {
+        if (response.success) {
+            teams = response.roomData.teams;
+            currentPresentation = response.roomData.currentPresentation;
+            currentPhase = response.roomData.phase || 'waiting';
 
-        updatePhaseUI(currentPhase, currentPresentation);
-        renderMarket();
-    } else {
-        alert(response.message);
-        window.location.href = '/';
-    }
+            // 내 투표 기록 복원
+            if (response.studentData && response.studentData.presentationVotes) {
+                const myVotes = response.studentData.presentationVotes[currentPresentation];
+                if (myVotes) {
+                    currentVoteRecord.count = myVotes.count;
+                    currentVoteRecord.types = myVotes.types;
+                    for (let i = 0; i < myVotes.count; i++) {
+                        updateClickDot(i, myVotes.types[i]);
+                    }
+                    if (myVotes.count >= MAX_CLICKS) {
+                        disableVoteButtons();
+                    }
+                }
+            }
+
+            updatePhaseUI(currentPhase, currentPresentation);
+            renderMarket();
+        } else {
+            alert(response.message);
+            window.location.href = '/';
+        }
+    });
 });
 
 // ─── 클릭 카운터 UI 초기화 ────────────────────────────────────────────

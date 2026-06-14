@@ -179,19 +179,33 @@
 
             <!-- 클릭 가이드 (Scaffolding) -->
             <div class="bg-gray-800 p-4 rounded-xl mb-4">
-                <div class="text-xs font-bold text-gray-400 uppercase mb-3">📋 투자 판단 가이드</div>
-                <div class="space-y-2">
-                    <div class="guide-card guide-up">
-                        <span class="font-bold text-red-400">📈 매수(UP)</span>
-                        <span class="text-gray-300"> — 진심 어린 사과 표정, 구체적 수치(Data), 당당한 목소리, 'Sorry' / 'Mistake' / 숫자 키워드</span>
+                <div class="text-xs font-bold text-gray-400 uppercase mb-3 flex items-center gap-1">
+                    <span>📋 투자 판단 가이드</span>
+                    <span class="text-[10px] bg-yellow-600 text-white px-1.5 py-0.5 rounded ml-2">기업 & NGO 공통</span>
+                </div>
+                <div class="space-y-3 text-sm">
+                    <div class="guide-card guide-down bg-blue-900 bg-opacity-30 p-2 rounded border border-blue-800">
+                        <div class="font-bold text-blue-400 mb-1">📉 매도 (SELL / DOWN)</div>
+                        <ul class="list-disc pl-5 text-gray-300 text-xs space-y-1">
+                            <li><span class="text-gray-400 font-bold">[기업]</span> 대본만 읽음, 눈맞춤 없음, 목소리 작음, 미안함 없음</li>
+                            <li><span class="text-gray-400 font-bold">[NGO]</span> <span class="text-yellow-200">발표를 훌륭하게 한 경우</span> 👉 구체적인 피해 수치/증거(Data) 폭격, 예의 바르면서도 단호한 압박(Firm yet polite), 3가지 요구사항으로 위기감 조성 시</li>
+                        </ul>
                     </div>
-                    <div class="guide-card guide-hold">
-                        <span class="font-bold text-gray-400">⏸ 관망(HOLD)</span>
-                        <span class="text-gray-300"> — 보통이다, 확신이 없다, 조금 더 지켜보겠다</span>
+                    
+                    <div class="guide-card guide-hold bg-gray-700 bg-opacity-50 p-2 rounded border border-gray-600">
+                        <div class="font-bold text-gray-400 mb-1">⏸ 관망 (HOLD)</div>
+                        <ul class="list-disc pl-5 text-gray-300 text-xs space-y-1">
+                            <li>도입부 자기소개, 평범한 배경 상황 설명 중일 때</li>
+                            <li>아직 확신이 서지 않아 조금 더 지켜볼 때</li>
+                        </ul>
                     </div>
-                    <div class="guide-card guide-down">
-                        <span class="font-bold text-blue-400">📉 매도(DOWN)</span>
-                        <span class="text-gray-300"> — 대본만 읽음, 눈 맞춤 없음, 목소리 너무 작음, 미안함 없음</span>
+
+                    <div class="guide-card guide-up bg-red-900 bg-opacity-30 p-2 rounded border border-red-800">
+                        <div class="font-bold text-red-400 mb-1">📈 매수 (BUY / UP)</div>
+                        <ul class="list-disc pl-5 text-gray-300 text-xs space-y-1">
+                            <li><span class="text-gray-400 font-bold">[기업]</span> 진심 어린 사과 표정, 구체적 수치 제시, 당당한 목소리</li>
+                            <li><span class="text-gray-400 font-bold">[NGO]</span> <span class="text-yellow-200">발표를 못해서 주가가 방어되는 경우</span> 👉 대본만 읽음, 구체적 근거 없이 감정적으로 화만 냄, 자신감 부족으로 위협이 안 될 때</li>
+                        </ul>
                     </div>
                 </div>
             </div>

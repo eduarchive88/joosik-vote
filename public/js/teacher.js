@@ -12,8 +12,8 @@ document.getElementById('displayRoomCode').innerText = roomCode;
 
 let roomData = null;
 let chart = null;
-let currentChatFilter = 'all'; // 채팅 필터 탭 상태
-let allChats = []; // 전체 채팅 로컬 보관
+let currentChatFilter = 'all';
+let allChats = [];
 
 const colors = [
     '#F87171', '#60A5FA', '#34D399', '#FBBF24', '#A78BFA', 
@@ -26,7 +26,6 @@ function updatePhaseUI(phase) {
     const startBtn = document.getElementById('startTradingBtn');
     const endBtn = document.getElementById('endTradingBtn');
 
-    // 단계별 배지 스타일
     const phaseMap = {
         waiting:      { text: '⏳ 대기 중',      cls: 'bg-gray-600 text-gray-300' },
         presentation: { text: '🎤 발표 진행 중', cls: 'bg-blue-600 text-white animate-pulse' },
@@ -37,10 +36,7 @@ function updatePhaseUI(phase) {
     badge.textContent = p.text;
     badge.className = `text-sm font-bold px-3 py-1 rounded-full ${p.cls}`;
 
-    // 버튼 가시성 제어
-    // 매매 시작 버튼: 발표 중이 아니고 매매 이전 단계일 때만 노출
     startBtn.classList.toggle('hidden', phase === 'trading' || phase === 'ended');
-    // 매매 종료 버튼: 매매 단계에만 노출
     endBtn.classList.toggle('hidden', phase !== 'trading');
 }
 
@@ -57,8 +53,9 @@ function initChart(teams) {
             borderColor: colors[i % colors.length],
             backgroundColor: colors[i % colors.length],
             borderWidth: 2,
-            tension: 0.1,
-            fill: false
+            tension: 0.3,
+            fill: false,
+            pointRadius: 3
         });
         i++;
     }
@@ -73,7 +70,11 @@ function initChart(teams) {
                 y: {
                     beginAtZero: false,
                     grid: { color: '#374151' },
-                    ticks: { color: '#D1D5DB' }
+                    ticks: {
+                        color: '#D1D5DB',
+                        // 달러 형식으로 표시
+                        callback: (val) => `$${val.toFixed(2)}`
+                    }
                 }
             },
             plugins: { legend: { labels: { color: '#D1D5DB' } } },
@@ -102,7 +103,7 @@ function renderTeams() {
         const team = roomData.teams[teamId];
         const isPresenting = roomData.currentPresentation === teamId;
         const phase = roomData.phase;
-        // 발표 제어 버튼: 매매/종료 단계에서는 숨김
+        // 발표 제어 버튼
         let ctrlHtml = '';
         if (phase !== 'trading' && phase !== 'ended') {
             if (isPresenting) {
@@ -117,13 +118,14 @@ function renderTeams() {
         }
 
         const tr = document.createElement('tr');
-        tr.className = 'border-b border-gray-700 hover:bg-gray-700 transition';
+        tr.className = `border-b border-gray-700 hover:bg-gray-700 transition ${isPresenting ? 'bg-blue-900 bg-opacity-30' : ''}`;
         tr.id = `row-${teamId}`;
         tr.innerHTML = `
-            <td class="p-3 font-semibold">${team.name}</td>
-            <td class="p-3 font-mono font-bold text-yellow-300" id="price-${teamId}">${team.price.toLocaleString()}원</td>
-            <td class="p-3 text-green-400 font-bold" id="up-${teamId}">${team.votes.up}</td>
-            <td class="p-3 text-red-400 font-bold" id="down-${teamId}">${team.votes.down}</td>
+            <td class="p-3 font-semibold">${team.name}${isPresenting ? ' <span class="text-blue-400 text-xs">🎤</span>' : ''}</td>
+            <td class="p-3 font-mono font-bold text-yellow-300" id="price-${teamId}">$${team.price.toFixed(2)}</td>
+            <td class="p-3 text-red-400 font-bold" id="up-${teamId}">${team.votes?.up || 0}</td>
+            <td class="p-3 text-gray-400 font-bold" id="hold-${teamId}">${team.votes?.hold || 0}</td>
+            <td class="p-3 text-blue-400 font-bold" id="down-${teamId}">${team.votes?.down || 0}</td>
             <td class="p-3">${ctrlHtml}</td>
         `;
         tbody.appendChild(tr);
@@ -141,7 +143,7 @@ function renderStudents() {
         div.className = 'bg-gray-700 p-2 rounded text-sm flex justify-between items-center';
         div.innerHTML = `
             <span><span class="font-mono text-gray-400">${s.studentId}</span> ${s.studentName}</span>
-            <span class="text-yellow-300 font-mono">${s.cash.toLocaleString()}원</span>
+            <span class="text-xs text-gray-400">접속 중</span>
         `;
         list.appendChild(div);
     });
@@ -150,7 +152,6 @@ function renderStudents() {
 // ─── 채팅 탭 초기화 ──────────────────────────────────────────────────
 function initChatTabs(teams) {
     const tabsEl = document.getElementById('chatTabs');
-    // 기존 전체 버튼 유지, 모둠별 탭 추가
     for (const teamId in teams) {
         const team = teams[teamId];
         const btn = document.createElement('button');
@@ -165,15 +166,11 @@ function initChatTabs(teams) {
 // ─── 채팅 탭 필터 ────────────────────────────────────────────────────
 window.filterChat = function(tab) {
     currentChatFilter = tab;
-    // 탭 버튼 활성 스타일
     document.querySelectorAll('.chat-tab-btn').forEach(btn => {
-        if (btn.dataset.tab === tab) {
-            btn.className = 'chat-tab-btn active-tab px-3 py-1 rounded text-sm bg-blue-600';
-        } else {
-            btn.className = 'chat-tab-btn px-3 py-1 rounded text-sm bg-gray-700 hover:bg-gray-600';
-        }
+        btn.className = btn.dataset.tab === tab
+            ? 'chat-tab-btn active-tab px-3 py-1 rounded text-sm bg-blue-600'
+            : 'chat-tab-btn px-3 py-1 rounded text-sm bg-gray-700 hover:bg-gray-600';
     });
-    // 채팅박스 재렌더링
     const chatBox = document.getElementById('chatBox');
     chatBox.innerHTML = '';
     allChats.forEach(chat => {
@@ -196,18 +193,21 @@ function appendChatDOM(chat) {
     const chatBox = document.getElementById('chatBox');
     const div = document.createElement('div');
     let icon = '💬', textClass = 'text-gray-300';
-    if (chat.type === 'up')   { icon = '👍'; textClass = 'text-green-300'; }
-    if (chat.type === 'down') { icon = '👎'; textClass = 'text-red-300'; }
+    if (chat.type === 'up')   { icon = '📈'; textClass = 'text-red-300'; }
+    if (chat.type === 'hold') { icon = '⏸'; textClass = 'text-gray-300'; }
+    if (chat.type === 'down') { icon = '📉'; textClass = 'text-blue-300'; }
+    if (chat.type === 'eval') { icon = '📝'; textClass = 'text-yellow-300'; }
     const teamLabel = chat.teamName ? `<span class="bg-gray-700 text-xs px-1 py-0.5 rounded mr-1">${chat.teamName}</span>` : '';
+    const evalLabel = chat.type === 'eval' ? '<span class="text-xs text-yellow-500 font-bold mr-1">[투자분석]</span>' : '';
     div.className = 'text-sm border-b border-gray-700 pb-1';
-    div.innerHTML = `<span class="font-bold text-gray-400">${chat.sender}</span> ${teamLabel}<span class="${textClass}">${icon} ${chat.message}</span>`;
+    div.innerHTML = `<span class="font-bold text-gray-400">${chat.sender}</span> ${teamLabel}${evalLabel}<span class="${textClass}">${icon} ${chat.message}</span>`;
     chatBox.appendChild(div);
     chatBox.scrollTop = chatBox.scrollHeight;
 }
 
 // ─── 게임 단계 전환 (교사 → 서버) ───────────────────────────────────
 window.setPhase = function(phase) {
-    const confirmMsg = phase === 'trading' ? '주식 매매를 시작하시겠습니까? 발표 단계가 종료됩니다.' : '매매를 종료하고 최종 결과를 확정하시겠습니까?';
+    const confirmMsg = phase === 'trading' ? '매매 단계를 시작하시겠습니까? 발표 단계가 종료됩니다.' : '평가를 종료하고 최종 결과를 확정하시겠습니까?';
     if (!confirm(confirmMsg)) return;
     socket.emit('setPhase', { roomCode, phase }, (res) => {
         if (res && res.success) {
@@ -233,11 +233,33 @@ socket.emit('requestRoomState', { roomCode, role: 'teacher' }, (response) => {
         renderTeams();
         renderStudents();
         updatePhaseUI(roomData.phase || 'waiting');
-        // 기존 채팅 복원
+
+        // 서버의 채팅 복원
         (roomData.chats || []).forEach(chat => {
             allChats.push(chat);
             appendChatDOM(chat);
         });
+
+        // 세션 파일에서 복원한 추가 채팅 (sessionStorage에 임시 저장된 것)
+        const restoredChatsRaw = sessionStorage.getItem('restoredChats');
+        if (restoredChatsRaw) {
+            try {
+                const restoredChats = JSON.parse(restoredChatsRaw);
+                // 서버 채팅과 중복 제거 후 추가
+                restoredChats.forEach(chat => {
+                    const isDuplicate = allChats.some(c =>
+                        c.sender === chat.sender &&
+                        c.message === chat.message &&
+                        c.teamId === chat.teamId
+                    );
+                    if (!isDuplicate) {
+                        allChats.push(chat);
+                        appendChatDOM(chat);
+                    }
+                });
+            } catch (e) { /* 파싱 에러 무시 */ }
+            sessionStorage.removeItem('restoredChats');
+        }
     } else {
         alert('방 정보를 불러올 수 없습니다. 다시 접속해주세요.');
         window.location.href = '/';
@@ -251,7 +273,7 @@ socket.on('studentJoined', (student) => {
 });
 
 socket.on('studentLeft', (socketId) => {
-    // 데이터 유지 정책
+    // 데이터 유지 정책: 삭제 안 함
 });
 
 socket.on('presentationStatusChanged', ({ teamId, status, phase }) => {
@@ -276,16 +298,18 @@ socket.on('priceUpdated', ({ teamId, price, history, votes }) => {
 
     const priceTd = document.getElementById(`price-${teamId}`);
     if (priceTd) {
-        priceTd.innerText = `${price.toLocaleString()}원`;
+        priceTd.innerText = `$${price.toFixed(2)}`;
         priceTd.classList.remove('flash-up', 'flash-down');
         void priceTd.offsetWidth;
         if (price > oldPrice) priceTd.classList.add('flash-up');
         else if (price < oldPrice) priceTd.classList.add('flash-down');
     }
     const upTd = document.getElementById(`up-${teamId}`);
-    if (upTd) upTd.innerText = votes.up;
+    if (upTd) upTd.innerText = votes?.up || 0;
+    const holdTd = document.getElementById(`hold-${teamId}`);
+    if (holdTd) holdTd.innerText = votes?.hold || 0;
     const downTd = document.getElementById(`down-${teamId}`);
-    if (downTd) downTd.innerText = votes.down;
+    if (downTd) downTd.innerText = votes?.down || 0;
     updateChart(teamId, price, history);
 });
 
@@ -293,64 +317,112 @@ socket.on('newChat', (chatMsg) => {
     appendChat(chatMsg);
 });
 
-// ─── 엑셀 내보내기 ───────────────────────────────────────────────────
+// ─── 세션 저장 (JSON 다운로드) ───────────────────────────────────────
+document.getElementById('saveSessionBtn').addEventListener('click', () => {
+    if (!roomData) return;
+
+    // 저장할 세션 데이터 구성
+    const sessionData = {
+        roomCode: roomCode,
+        savedAt: new Date().toISOString(),
+        initialCash: roomData.initialCash,
+        phase: roomData.phase,
+        teams: roomData.teams,
+        students: roomData.students,
+        chats: allChats
+    };
+
+    // JSON 파일로 다운로드
+    const blob = new Blob([JSON.stringify(sessionData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `세션_${roomCode}_${new Date().toLocaleDateString('ko-KR').replace(/\. /g, '-').replace('.', '')}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    alert(`✅ 세션이 저장되었습니다!\n\n방 코드: ${roomCode}\n다음번에 같은 방 코드로 세션 파일을 업로드하면 이어서 진행할 수 있습니다.`);
+});
+
+// ─── 결과 내보내기 (Excel 다운로드) ──────────────────────────────────
 document.getElementById('exportExcelBtn').addEventListener('click', () => {
     if (!roomData) return;
 
-    // 1. 학생별 최종 자산 및 순위
-    const studentsArray = Object.values(roomData.students).map(s => {
-        let totalAsset = s.cash;
-        for (const tId in s.portfolio) {
-            totalAsset += s.portfolio[tId] * roomData.teams[tId].price;
-        }
-        return { '학번': s.studentId, '이름': s.studentName, '남은 현금': s.cash, '최종 총 자산': totalAsset };
-    });
-    studentsArray.sort((a, b) => b['최종 총 자산'] - a['최종 총 자산']);
-    studentsArray.forEach((s, idx) => s['순위'] = idx + 1);
-
-    // 2. 모둠별 최종 주가 및 상승률
+    // 1. 모둠별 최종 주가 및 투표 현황
     const teamsArray = Object.values(roomData.teams).map(t => {
         const startPrice = t.history[0];
         const endPrice = t.price;
-        const rate = ((endPrice - startPrice) / startPrice * 100).toFixed(2);
-        return { '모둠명': t.name, '초기 주가': startPrice, '최종 주가': endPrice, '상승률(%)': rate + '%', '긍정 투표수': t.votes.up, '부정 투표수': t.votes.down };
+        const change = endPrice - startPrice;
+        const changePercent = ((change / startPrice) * 100).toFixed(2);
+        return {
+            '모둠명': t.name,
+            '초기 주가($)': startPrice.toFixed(2),
+            '최종 주가($)': endPrice.toFixed(2),
+            '변동액($)': change.toFixed(2),
+            '변동률(%)': changePercent + '%',
+            '📈 매수 투표수': t.votes?.up || 0,
+            '⏸ 관망 투표수': t.votes?.hold || 0,
+            '📉 매도 투표수': t.votes?.down || 0
+        };
     });
 
-    // 3. 모둠별 학생 의견 (발표 당시 채팅)
+    // 2. 학생별 투자 분석 보고서 (사후 평가)
+    const evalArray = [];
+    Object.values(roomData.students).forEach(s => {
+        if (s.postEvalReasons) {
+            for (const teamId in s.postEvalReasons) {
+                const team = roomData.teams[teamId];
+                evalArray.push({
+                    '학번': s.studentId,
+                    '이름': s.studentName,
+                    '평가 대상 모둠': team ? team.name : teamId,
+                    '투자 분석 이유': s.postEvalReasons[teamId]
+                });
+            }
+        }
+    });
+
+    // 3. 모둠별 실시간 의견 (채팅)
     const teamChatSheets = {};
     for (const teamId in roomData.teams) {
         teamChatSheets[teamId] = [];
     }
     allChats.forEach(chat => {
         if (chat.teamId && teamChatSheets[chat.teamId] !== undefined) {
-            const emoji = chat.type === 'up' ? '👍' : chat.type === 'down' ? '👎' : '💬';
+            const icon = chat.type === 'up' ? '📈 매수' : chat.type === 'down' ? '📉 매도' : chat.type === 'hold' ? '⏸ 관망' : '📝 분석보고서';
             teamChatSheets[chat.teamId].push({
                 '발표 모둠': chat.teamName || '',
                 '학생': chat.sender,
-                '반응': emoji,
-                '의견 내용': chat.message
+                '유형': icon,
+                '내용': chat.message
             });
         }
     });
 
     const wb = XLSX.utils.book_new();
-    const wsStudents = XLSX.utils.json_to_sheet(studentsArray);
-    XLSX.utils.book_append_sheet(wb, wsStudents, "학생별 최종 순위");
+
+    // 모둠별 최종 결과 시트
     const wsTeams = XLSX.utils.json_to_sheet(teamsArray);
     XLSX.utils.book_append_sheet(wb, wsTeams, "모둠별 최종 결과");
+
+    // 투자 분석 보고서 시트
+    if (evalArray.length > 0) {
+        const wsEval = XLSX.utils.json_to_sheet(evalArray);
+        XLSX.utils.book_append_sheet(wb, wsEval, "투자 분석 보고서");
+    } else {
+        const wsEval = XLSX.utils.json_to_sheet([{ '안내': '제출된 투자 분석 보고서가 없습니다.' }]);
+        XLSX.utils.book_append_sheet(wb, wsEval, "투자 분석 보고서");
+    }
 
     // 모둠별 의견 시트 추가
     for (const teamId in roomData.teams) {
         const sheetName = `${roomData.teams[teamId].name} 의견`;
         const data = teamChatSheets[teamId];
-        if (data.length > 0) {
-            const ws = XLSX.utils.json_to_sheet(data);
-            XLSX.utils.book_append_sheet(wb, ws, sheetName);
-        } else {
-            const ws = XLSX.utils.json_to_sheet([{ '발표 모둠': '의견 없음', '학생': '', '반응': '', '의견 내용': '' }]);
-            XLSX.utils.book_append_sheet(wb, ws, sheetName);
-        }
+        const ws = data.length > 0
+            ? XLSX.utils.json_to_sheet(data)
+            : XLSX.utils.json_to_sheet([{ '안내': '의견 없음', '학생': '', '유형': '', '내용': '' }]);
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
     }
 
-    XLSX.writeFile(wb, `모의투자_결과_${roomCode}.xlsx`);
+    XLSX.writeFile(wb, `MarketSentiment_결과_${roomCode}.xlsx`);
 });

@@ -3,66 +3,219 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>학생 참여 - 위기 관리 모의투자</title>
+    <title>학생 참여 - Market Sentiment Meter</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="/socket.io/socket.io.js"></script>
     <link rel="stylesheet" href="/css/style.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
+        * { font-family: 'Inter', sans-serif; }
+
+        /* 버튼 애니메이션 */
+        .vote-btn {
+            transition: all 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+            position: relative;
+            overflow: hidden;
+        }
+        .vote-btn:active { transform: scale(0.92); }
+        .vote-btn::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: rgba(255,255,255,0.2);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .vote-btn:active::after { opacity: 1; }
+
+        /* 매수 버튼 */
+        .btn-up {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            box-shadow: 0 4px 20px rgba(239,68,68,0.4);
+        }
+        .btn-up:hover { background: linear-gradient(135deg, #f87171, #ef4444); }
+
+        /* 관망 버튼 */
+        .btn-hold {
+            background: linear-gradient(135deg, #6b7280, #4b5563);
+            box-shadow: 0 4px 20px rgba(107,114,128,0.4);
+        }
+        .btn-hold:hover { background: linear-gradient(135deg, #9ca3af, #6b7280); }
+
+        /* 매도 버튼 */
+        .btn-down {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            box-shadow: 0 4px 20px rgba(59,130,246,0.4);
+        }
+        .btn-down:hover { background: linear-gradient(135deg, #60a5fa, #3b82f6); }
+
+        /* 클릭 카운터 */
+        .click-counter {
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .click-dot {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #374151;
+            border: 2px solid #4b5563;
+            transition: all 0.3s ease;
+        }
+        .click-dot.used-up   { background: #ef4444; border-color: #ef4444; box-shadow: 0 0 8px rgba(239,68,68,0.6); }
+        .click-dot.used-hold { background: #6b7280; border-color: #6b7280; box-shadow: 0 0 8px rgba(107,114,128,0.6); }
+        .click-dot.used-down { background: #3b82f6; border-color: #3b82f6; box-shadow: 0 0 8px rgba(59,130,246,0.6); }
+
+        /* 가이드 카드 */
+        .guide-card {
+            border-left: 3px solid;
+            padding: 8px 12px;
+            border-radius: 0 8px 8px 0;
+            font-size: 0.8rem;
+        }
+        .guide-up   { border-color: #ef4444; background: rgba(239,68,68,0.1); }
+        .guide-hold { border-color: #6b7280; background: rgba(107,114,128,0.1); }
+        .guide-down { border-color: #3b82f6; background: rgba(59,130,246,0.1); }
+
+        /* 사후 평가 모달 */
+        .modal-overlay {
+            backdrop-filter: blur(8px);
+            background: rgba(0,0,0,0.7);
+        }
+
+        /* 주가 깜빡임 */
+        @keyframes priceBlink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        .price-blink { animation: priceBlink 0.5s ease 2; }
+
+        /* 슬라이드 인 애니메이션 */
+        @keyframes slideUp {
+            from { transform: translateY(30px); opacity: 0; }
+            to   { transform: translateY(0);    opacity: 1; }
+        }
+        .slide-up { animation: slideUp 0.4s ease; }
+
+        /* 발표 중 배너 */
+        .presenting-pulse {
+            animation: presentingPulse 2s ease-in-out infinite;
+        }
+        @keyframes presentingPulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(59,130,246,0.4); }
+            50%       { box-shadow: 0 0 0 12px rgba(59,130,246,0); }
+        }
+    </style>
 </head>
 <body class="bg-gray-900 text-white min-h-screen flex flex-col">
     <header class="bg-gray-800 border-b border-gray-700 py-3 px-4 flex justify-between items-center shadow-md sticky top-0 z-10">
         <div>
-            <h1 class="text-lg font-bold text-green-400">📈 모의투자</h1>
+            <h1 class="text-lg font-bold text-green-400">📈 Market Sentiment</h1>
             <div class="text-xs text-gray-400" id="studentInfo">---- / ---</div>
         </div>
         <div class="flex items-center gap-3">
-            <!-- 게임 단계 배지 -->
             <span id="phaseBadge" class="text-xs font-bold px-2 py-1 rounded-full bg-gray-600 text-gray-300">⏳ 대기 중</span>
-            <div class="text-right">
-                <div class="text-xs text-gray-400">내 현금 잔고</div>
-                <div class="text-xl font-mono font-bold text-yellow-300" id="myCash">0원</div>
-            </div>
         </div>
     </header>
 
     <main class="flex-grow p-4 space-y-4">
-        <!-- 대기 안내 배너 (발표 전 / 매매 종료 후) -->
-        <section id="waitingBanner" class="bg-gray-700 p-4 rounded-xl text-center text-gray-300 hidden">
-            <p id="waitingMsg" class="text-lg">⏳ 교사의 안내를 기다려주세요.</p>
+        <!-- 대기 안내 배너 -->
+        <section id="waitingBanner" class="bg-gray-700 p-6 rounded-xl text-center text-gray-300">
+            <p class="text-4xl mb-2">⏳</p>
+            <p id="waitingMsg" class="text-lg font-semibold">교사의 발표 시작 신호를 기다려주세요.</p>
+            <p class="text-sm text-gray-400 mt-2">발표가 시작되면 자동으로 투자 화면이 나타납니다.</p>
         </section>
 
-        <!-- 현재 발표 중 UI (발표 단계에만 표시) -->
-        <section id="presentationSection" class="bg-gray-800 p-4 rounded-xl shadow-lg border border-blue-500 hidden relative overflow-hidden">
-            <div class="absolute top-0 right-0 bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded-bl-lg animate-pulse">발표 중</div>
-            <h2 class="text-lg font-semibold mb-2 text-blue-300">🎤 현재 발표: <span id="currentTeamName" class="text-white">---</span></h2>
-            
-            <div class="flex gap-4 mb-4">
-                <button id="voteUpBtn" onclick="vote('up')" class="flex-1 bg-green-600 hover:bg-green-700 py-4 rounded-xl font-bold text-2xl transition shadow-lg active:scale-95">👍 긍정</button>
-                <button id="voteDownBtn" onclick="vote('down')" class="flex-1 bg-red-600 hover:bg-red-700 py-4 rounded-xl font-bold text-2xl transition shadow-lg active:scale-95">👎 부정</button>
+        <!-- 발표 중 UI -->
+        <section id="presentationSection" class="hidden slide-up">
+            <!-- 현재 발표 정보 -->
+            <div class="bg-blue-900 border border-blue-500 p-4 rounded-xl mb-4 presenting-pulse">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <div class="text-xs text-blue-300 uppercase font-bold mb-1">🎤 현재 발표 중</div>
+                        <div class="text-xl font-bold" id="currentTeamName">---</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-xs text-gray-400">현재 주가</div>
+                        <div class="text-2xl font-mono font-bold text-yellow-300" id="currentPrice">$100.00</div>
+                    </div>
+                </div>
             </div>
-            
-            <form id="voteReasonForm" class="flex gap-2">
-                <input type="text" id="voteReason" class="flex-grow bg-gray-700 rounded-lg p-2 text-white text-sm" placeholder="의견을 입력하고 전송하세요" autocomplete="off">
-                <button type="submit" class="bg-blue-600 px-4 py-2 rounded-lg font-bold text-sm">전송</button>
-            </form>
-            <div id="voteMessage" class="text-xs text-red-400 mt-2 hidden"></div>
+
+            <!-- 클릭 카운터 -->
+            <div class="bg-gray-800 p-4 rounded-xl mb-4">
+                <div class="flex justify-between items-center mb-3">
+                    <span class="text-sm font-bold text-gray-300">🎯 남은 투자 기회</span>
+                    <span id="remainingCount" class="text-lg font-mono font-bold text-yellow-300">10번</span>
+                </div>
+                <div class="click-counter" id="clickCounter">
+                    <!-- JS로 동적 생성 (10개 점) -->
+                </div>
+                <div id="allUsedMsg" class="hidden text-center text-sm text-yellow-400 mt-3 font-semibold">
+                    🎉 투자 완료! 아래에 평가 이유를 작성해주세요.
+                </div>
+            </div>
+
+            <!-- 투표 버튼 3개 -->
+            <div class="grid grid-cols-3 gap-3 mb-4">
+                <button id="voteUpBtn" onclick="vote('up')" class="vote-btn btn-up py-5 rounded-xl font-bold text-sm text-white flex flex-col items-center gap-1">
+                    <span class="text-2xl">📈</span>
+                    <span>매수</span>
+                    <span class="text-xs opacity-80">BUY / UP</span>
+                </button>
+                <button id="voteHoldBtn" onclick="vote('hold')" class="vote-btn btn-hold py-5 rounded-xl font-bold text-sm text-white flex flex-col items-center gap-1">
+                    <span class="text-2xl">⏸️</span>
+                    <span>관망</span>
+                    <span class="text-xs opacity-80">HOLD</span>
+                </button>
+                <button id="voteDownBtn" onclick="vote('down')" class="vote-btn btn-down py-5 rounded-xl font-bold text-sm text-white flex flex-col items-center gap-1">
+                    <span class="text-2xl">📉</span>
+                    <span>매도</span>
+                    <span class="text-xs opacity-80">SELL / DOWN</span>
+                </button>
+            </div>
+
+            <!-- 클릭 가이드 (Scaffolding) -->
+            <div class="bg-gray-800 p-4 rounded-xl mb-4">
+                <div class="text-xs font-bold text-gray-400 uppercase mb-3">📋 투자 판단 가이드</div>
+                <div class="space-y-2">
+                    <div class="guide-card guide-up">
+                        <span class="font-bold text-red-400">📈 매수(UP)</span>
+                        <span class="text-gray-300"> — 진심 어린 사과 표정, 구체적 수치(Data), 당당한 목소리, 'Sorry' / 'Mistake' / 숫자 키워드</span>
+                    </div>
+                    <div class="guide-card guide-hold">
+                        <span class="font-bold text-gray-400">⏸ 관망(HOLD)</span>
+                        <span class="text-gray-300"> — 보통이다, 확신이 없다, 조금 더 지켜보겠다</span>
+                    </div>
+                    <div class="guide-card guide-down">
+                        <span class="font-bold text-blue-400">📉 매도(DOWN)</span>
+                        <span class="text-gray-300"> — 대본만 읽음, 눈 맞춤 없음, 목소리 너무 작음, 미안함 없음</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 에러 메시지 -->
+            <div id="voteMessage" class="text-xs text-red-400 mt-2 hidden text-center bg-red-900 p-2 rounded-lg"></div>
         </section>
 
         <!-- 매매 단계 안내 배너 -->
         <section id="tradingBanner" class="bg-yellow-900 border border-yellow-500 p-4 rounded-xl text-center hidden">
-            <p class="text-yellow-300 font-bold text-lg">💹 지금은 주식 매매 시간입니다!</p>
-            <p class="text-yellow-400 text-sm mt-1">아래에서 매수/매도 버튼을 눌러 거래하세요.</p>
+            <p class="text-yellow-300 font-bold text-lg">💹 발표 평가 진행 중</p>
+            <p class="text-yellow-400 text-sm mt-1">각 발표팀의 발표를 듣고 실시간으로 투자하세요!</p>
         </section>
 
         <!-- 매매 종료 안내 배너 -->
         <section id="endedBanner" class="bg-red-900 border border-red-500 p-4 rounded-xl text-center hidden">
-            <p class="text-red-300 font-bold text-lg">🏁 모의투자가 종료되었습니다!</p>
-            <p class="text-red-400 text-sm mt-1">최종 결과를 확인하세요.</p>
+            <p class="text-red-300 font-bold text-lg">🏁 평가가 종료되었습니다!</p>
+            <p class="text-red-400 text-sm mt-1">최종 주가 결과를 확인하세요.</p>
         </section>
 
-        <!-- 내 포트폴리오 및 시장 현황 -->
+        <!-- 시장 현황 -->
         <section class="bg-gray-800 p-4 rounded-xl shadow-lg">
-            <h2 class="text-lg font-semibold mb-4 text-green-300">💼 시장 및 내 포트폴리오</h2>
-            <div class="space-y-4" id="portfolioList">
+            <h2 class="text-lg font-semibold mb-4 text-green-300">📊 시장 현황</h2>
+            <div class="space-y-3" id="marketList">
                 <!-- JS로 동적 생성 -->
             </div>
         </section>
@@ -76,33 +229,24 @@
         </p>
     </footer>
 
-    <!-- 매수/매도 모달 -->
-    <div id="tradeModal" class="fixed inset-0 bg-black bg-opacity-75 hidden items-center justify-center z-50 p-4">
-        <div class="bg-gray-800 p-6 rounded-xl shadow-2xl w-full max-w-sm border border-gray-600">
-            <h2 class="text-xl font-bold mb-4" id="modalTitle">매매하기</h2>
-            <p class="text-sm text-gray-300 mb-4">현재가: <span id="modalPrice" class="font-mono text-yellow-300 font-bold"></span>원</p>
-            
-            <div class="flex gap-2 mb-4">
-                <button onclick="setTradeAmount(1)" class="flex-1 bg-gray-700 py-2 rounded">+1주</button>
-                <button onclick="setTradeAmount(5)" class="flex-1 bg-gray-700 py-2 rounded">+5주</button>
-                <button onclick="setTradeAmount(10)" class="flex-1 bg-gray-700 py-2 rounded">+10주</button>
+    <!-- 사후 평가 모달 (10번 클릭 후 자동 팝업) -->
+    <div id="postEvalModal" class="fixed inset-0 modal-overlay hidden items-center justify-center z-50 p-4">
+        <div class="bg-gray-800 p-6 rounded-2xl shadow-2xl w-full max-w-sm border border-blue-500 slide-up">
+            <div class="text-center mb-4">
+                <div class="text-3xl mb-2">📝</div>
+                <h2 class="text-xl font-bold text-blue-300">투자 분석 보고서</h2>
+                <p class="text-sm text-gray-400 mt-1"><span id="evalTeamName" class="text-yellow-300 font-bold">---</span> 발표 평가</p>
             </div>
-            
-            <div class="mb-4">
-                <label class="block text-sm mb-1 text-gray-400">수량</label>
-                <div class="flex">
-                    <input type="number" id="tradeAmount" class="w-full bg-gray-700 rounded-l p-2 text-white font-mono text-lg text-center" value="1" min="1">
-                    <span class="bg-gray-600 p-2 rounded-r flex items-center">주</span>
-                </div>
+            <p class="text-sm font-bold text-gray-300 mb-3">Why did you invest like this?</p>
+            <p class="text-xs text-gray-500 mb-3">왜 이렇게 투자했나요? 짧게 적어주세요.<br>(표정, 목소리, 내용, 진정성 등)</p>
+            <textarea id="evalReason" 
+                class="w-full bg-gray-700 rounded-xl p-3 text-white text-sm resize-none border border-gray-600 focus:border-blue-500 focus:outline-none" 
+                rows="4"
+                placeholder="예: 표정이 진지해서 진정성이 느껴졌다 / 숫자를 말할 때 신뢰가 갔다 / 대본만 읽어서 아쉬웠다..."></textarea>
+            <div class="flex gap-3 mt-4">
+                <button onclick="skipPostEval()" class="flex-1 bg-gray-700 hover:bg-gray-600 py-3 rounded-xl text-sm text-gray-400 transition">건너뛰기</button>
+                <button onclick="submitPostEval()" class="flex-1 bg-blue-600 hover:bg-blue-500 py-3 rounded-xl text-sm font-bold text-white transition">제출하기 ✓</button>
             </div>
-
-            <p class="text-sm text-gray-400 mb-6 text-right">예상 금액: <span id="modalTotal" class="font-mono text-white font-bold"></span>원</p>
-
-            <div class="flex gap-4">
-                <button id="buyBtn" class="flex-1 bg-red-600 hover:bg-red-700 py-3 rounded font-bold text-lg shadow-lg active:scale-95">매수</button>
-                <button id="sellBtn" class="flex-1 bg-blue-600 hover:bg-blue-700 py-3 rounded font-bold text-lg shadow-lg active:scale-95">매도</button>
-            </div>
-            <button onclick="closeModal()" class="w-full mt-4 text-gray-400 hover:text-white text-sm py-2">취소</button>
         </div>
     </div>
 

@@ -3,55 +3,111 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>위기 관리 모의투자</title>
+    <title>Market Sentiment Meter - 실시간 동료평가 시스템</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="/socket.io/socket.io.js"></script>
     <link rel="stylesheet" href="/css/style.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
+        * { font-family: 'Inter', sans-serif; }
+
+        .gradient-title {
+            background: linear-gradient(135deg, #60a5fa, #34d399, #fbbf24);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .card-hover {
+            transition: all 0.2s ease;
+        }
+        .card-hover:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        }
+
+        /* 세션 복원 드래그 영역 */
+        .drop-zone {
+            border: 2px dashed #4b5563;
+            transition: all 0.2s ease;
+        }
+        .drop-zone.dragover {
+            border-color: #60a5fa;
+            background: rgba(96,165,250,0.1);
+        }
+    </style>
 </head>
 <body class="bg-gray-900 text-white min-h-screen flex flex-col justify-between">
     <main class="flex-grow flex items-center justify-center p-4">
-        <div class="bg-gray-800 p-8 rounded-xl shadow-2xl w-full max-w-md">
-            <h1 class="text-3xl font-bold text-center mb-8 text-blue-400">위기 관리 모의투자</h1>
-            
-            <div class="space-y-6">
-                <!-- 학생 참여 -->
-                <div class="border-b border-gray-700 pb-6">
-                    <h2 class="text-xl font-semibold mb-4 text-green-400">학생 입장</h2>
-                    <form id="joinForm" class="space-y-3">
+        <div class="w-full max-w-lg space-y-6">
+            <!-- 타이틀 -->
+            <div class="text-center mb-2">
+                <h1 class="text-3xl font-black gradient-title mb-2">📈 Market Sentiment Meter</h1>
+                <p class="text-gray-400 text-sm">실시간 동료 평가 시스템 | 경기도 지구과학 교사 뀨짱</p>
+            </div>
+
+            <!-- 학생 입장 -->
+            <div class="bg-gray-800 p-6 rounded-2xl shadow-2xl card-hover border border-gray-700">
+                <h2 class="text-xl font-bold mb-4 text-green-400">👩‍🎓 학생 입장</h2>
+                <form id="joinForm" class="space-y-3">
+                    <div>
+                        <label class="block text-sm mb-1 text-gray-300">입장 코드</label>
+                        <input type="text" id="roomCode" class="w-full bg-gray-700 rounded-xl p-3 text-white uppercase font-mono tracking-widest border border-gray-600 focus:border-green-500 focus:outline-none" placeholder="예: A1B2C" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm mb-1 text-gray-300">학번 (5자리 숫자)</label>
+                        <input type="text" id="studentId" class="w-full bg-gray-700 rounded-xl p-3 text-white border border-gray-600 focus:border-green-500 focus:outline-none" pattern="\d{5}" placeholder="예: 31101" required title="학번은 하이픈 없이 5자리 숫자로 입력해야 합니다.">
+                    </div>
+                    <div>
+                        <label class="block text-sm mb-1 text-gray-300">이름</label>
+                        <input type="text" id="studentName" class="w-full bg-gray-700 rounded-xl p-3 text-white border border-gray-600 focus:border-green-500 focus:outline-none" placeholder="이름" required>
+                    </div>
+                    <button type="submit" class="w-full bg-green-600 hover:bg-green-500 py-3 rounded-xl font-bold text-lg transition shadow-lg">입장하기 →</button>
+                </form>
+            </div>
+
+            <!-- 교사 섹션 -->
+            <div class="bg-gray-800 p-6 rounded-2xl shadow-2xl card-hover border border-gray-700">
+                <h2 class="text-xl font-bold mb-4 text-yellow-400">👩‍🏫 교사 (방 만들기)</h2>
+                
+                <!-- 탭 -->
+                <div class="flex gap-2 mb-4">
+                    <button id="tabNew" onclick="switchTab('new')" class="flex-1 py-2 rounded-xl text-sm font-bold bg-yellow-600 text-white transition">새 방 만들기</button>
+                    <button id="tabRestore" onclick="switchTab('restore')" class="flex-1 py-2 rounded-xl text-sm font-bold bg-gray-700 text-gray-300 hover:bg-gray-600 transition">세션 이어하기</button>
+                </div>
+
+                <!-- 새 방 만들기 탭 -->
+                <div id="panelNew">
+                    <form id="createForm" class="space-y-3">
                         <div>
-                            <label class="block text-sm mb-1">입장 코드</label>
-                            <input type="text" id="roomCode" class="w-full bg-gray-700 rounded p-2 text-white uppercase" placeholder="예: A1B2C" required>
+                            <label class="block text-sm mb-1 text-gray-300">사용자 지정 방 코드 (선택)</label>
+                            <input type="text" id="customRoomCode" class="w-full bg-gray-700 rounded-xl p-3 text-white uppercase font-mono border border-gray-600 focus:border-yellow-500 focus:outline-none" placeholder="입력하지 않으면 랜덤 생성">
                         </div>
                         <div>
-                            <label class="block text-sm mb-1">학번 (5자리 숫자)</label>
-                            <input type="text" id="studentId" class="w-full bg-gray-700 rounded p-2 text-white" pattern="\d{5}" placeholder="예: 31101" required title="학번은 하이픈 없이 5자리 숫자로 입력해야 합니다.">
+                            <label class="block text-sm mb-1 text-gray-300">모둠 수</label>
+                            <input type="number" id="numTeams" class="w-full bg-gray-700 rounded-xl p-3 text-white border border-gray-600 focus:border-yellow-500 focus:outline-none" value="4" min="1" max="10" required>
                         </div>
-                        <div>
-                            <label class="block text-sm mb-1">이름</label>
-                            <input type="text" id="studentName" class="w-full bg-gray-700 rounded p-2 text-white" placeholder="이름" required>
-                        </div>
-                        <button type="submit" class="w-full bg-green-600 hover:bg-green-700 py-2 rounded font-bold transition">입장하기</button>
+                        <button type="submit" class="w-full bg-yellow-600 hover:bg-yellow-500 py-3 rounded-xl font-bold text-lg transition shadow-lg">새 방 만들기 →</button>
                     </form>
                 </div>
 
-                <!-- 교사 방 생성 -->
-                <div>
-                    <h2 class="text-xl font-semibold mb-4 text-yellow-400">교사 (방 만들기)</h2>
-                    <form id="createForm" class="space-y-3">
-                        <div>
-                            <label class="block text-sm mb-1">사용자 지정 방 코드 (선택)</label>
-                            <input type="text" id="customRoomCode" class="w-full bg-gray-700 rounded p-2 text-white uppercase" placeholder="입력하지 않으면 랜덤 생성">
-                        </div>
-                        <div>
-                            <label class="block text-sm mb-1">모둠 수</label>
-                            <input type="number" id="numTeams" class="w-full bg-gray-700 rounded p-2 text-white" value="4" min="1" max="10" required>
-                        </div>
-                        <div>
-                            <label class="block text-sm mb-1">학생 지급 초기 투자금 (원)</label>
-                            <input type="number" id="initialCash" class="w-full bg-gray-700 rounded p-2 text-white" value="100000" step="10000" min="10000" required>
-                        </div>
-                        <button type="submit" class="w-full bg-yellow-600 hover:bg-yellow-700 py-2 rounded font-bold transition">새 방 만들기</button>
-                    </form>
+                <!-- 세션 이어하기 탭 -->
+                <div id="panelRestore" class="hidden">
+                    <p class="text-sm text-gray-400 mb-3">
+                        저장된 세션 JSON 파일을 불러오면 <span class="text-yellow-300 font-bold">같은 방 코드</span>로 이어서 진행합니다.<br>
+                        학생들이 같은 코드로 다시 입장하면 데이터가 이어집니다.
+                    </p>
+                    <div class="drop-zone rounded-xl p-6 text-center cursor-pointer" id="dropZone" onclick="document.getElementById('sessionFile').click()">
+                        <div class="text-3xl mb-2">📂</div>
+                        <p class="text-gray-300 text-sm">JSON 파일을 클릭하거나 드래그하여 업로드</p>
+                        <p class="text-gray-500 text-xs mt-1">세션_[방코드]_[날짜].json</p>
+                        <input type="file" id="sessionFile" accept=".json" class="hidden">
+                    </div>
+                    <div id="sessionPreview" class="hidden mt-3 bg-gray-700 rounded-xl p-4 text-sm">
+                        <div class="text-green-400 font-bold mb-2">✅ 세션 파일 감지됨</div>
+                        <div id="sessionInfo" class="text-gray-300 space-y-1"></div>
+                        <button id="restoreBtn" class="w-full bg-yellow-600 hover:bg-yellow-500 py-3 rounded-xl font-bold text-lg transition shadow-lg mt-3">이 세션 이어하기 →</button>
+                    </div>
                 </div>
             </div>
         </div>

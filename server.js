@@ -7,6 +7,9 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
+// JSON 파싱 미들웨어
+app.use(express.json({ limit: '10mb' }));
+
 // 정적 파일 제공
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -26,14 +29,16 @@ function generateRoomCode() {
     return code;
 }
 
-// 주가 변동 가중치 설정
+// 주가 변동 가중치 설정 (달러 기준, 소수점 2자리)
+// 기본 주가: $100.00
+// 투표 영향: up/hold/down 각각 가중치
 const PRICE_IMPACT = {
-    VOTE_UP: 100,
-    VOTE_DOWN: -100,
-    BUY: 50,
-    SELL: -50
+    VOTE_UP: 1.0,    // 매수 → +$1.00
+    VOTE_HOLD: 0.0,  // 관망 → 변동 없음
+    VOTE_DOWN: -1.0, // 매도 → -$1.00
 };
-const INITIAL_STOCK_PRICE = 10000;
+const INITIAL_STOCK_PRICE = 100.00; // $100.00
+const MAX_VOTES_PER_PRESENTATION = 10; // 발표당 최대 클릭 횟수
 
 io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
@@ -55,13 +60,13 @@ io.on('connection', (socket) => {
                 name: `${i}모둠`,
                 price: INITIAL_STOCK_PRICE,
                 history: [INITIAL_STOCK_PRICE], // 차트용
-                votes: { up: 0, down: 0 }
+                votes: { up: 0, hold: 0, down: 0 }
             };
         }
 
         rooms[roomCode] = {
             host: socket.id,
-            initialCash: parseInt(initialCash),
+            initialCash: parseFloat(initialCash) || 1000.00,
             teams: teams,
             students: {},
             currentPresentation: null, // 현재 발표 중인 모둠 ID
@@ -116,20 +121,17 @@ io.on('connection', (socket) => {
             return callback({ success: true, roomData: room, studentData: room.students[socket.id] });
         }
 
-        // 초기 포트폴리오 세팅 (모든 모둠 주식 1주씩)
-        const initialPortfolio = {};
-        for (let tId in room.teams) {
-            initialPortfolio[tId] = 1;
-        }
-
+        // 학생 초기 데이터 세팅
         room.students[socket.id] = {
             socketId: socket.id,
             studentId,
             studentName,
             cash: room.initialCash,
-            portfolio: initialPortfolio,
-            votes: {}, // teamId: 'up' or 'down'
-            lastVoteTime: 0
+            // 발표별 투표 정보: { teamId: { count: 0~10, types: ['up','hold',...], reason: '' } }
+            presentationVotes: {},
+            lastVoteTime: 0,
+            // 사후 평가 기록: { teamId: { reason: '' } }
+            postEvalReasons: {}
         };
 
         socket.join(roomCode);
@@ -167,7 +169,6 @@ io.on('connection', (socket) => {
         const room = rooms[roomCode];
         if (!room || room.host !== socket.id) return;
 
-        // 매매 시작 전에 발표 중이면 발표 종료
         if (phase === 'trading') {
             room.currentPresentation = null;
         }
@@ -177,132 +178,106 @@ io.on('connection', (socket) => {
         if (callback) callback({ success: true });
     });
 
-    // 5. 학생: 실시간 투표 (발표 중에만 허용)
+    // 5. 학생: 실시간 투표 (발표 중에만 허용, 10번 제한)
     socket.on('vote', ({ roomCode, teamId, type, reason }) => {
         const room = rooms[roomCode];
-        // 발표 중이며 해당 모둠이 발표 중일 때만 허용
         if (!room || room.phase !== 'presentation' || room.currentPresentation !== teamId) return;
         
         const student = room.students[socket.id];
         if (!student) return;
 
-        // 쿨타임 체크 (5초)
+        // 쿨타임 체크 (2초)
         const now = Date.now();
-        if (now - student.lastVoteTime < 5000) {
-            socket.emit('voteError', { message: '투표 쿨타임 중입니다. 잠시 후 다시 시도하세요.' });
+        if (now - student.lastVoteTime < 2000) {
+            socket.emit('voteError', { message: '잠시 후 다시 눌러주세요. (2초 쿨타임)' });
             return;
         }
 
+        // 해당 발표의 투표 초기화
+        if (!student.presentationVotes[teamId]) {
+            student.presentationVotes[teamId] = { count: 0, types: [], reason: '' };
+        }
+
+        // 10번 초과 차단
+        if (student.presentationVotes[teamId].count >= MAX_VOTES_PER_PRESENTATION) {
+            socket.emit('voteError', { message: `이미 ${MAX_VOTES_PER_PRESENTATION}번 모두 투자했습니다!` });
+            return;
+        }
+
+        // 유효한 타입 확인
+        if (!['up', 'hold', 'down'].includes(type)) return;
+
         student.lastVoteTime = now;
-        student.votes[teamId] = type;
+        student.presentationVotes[teamId].count++;
+        student.presentationVotes[teamId].types.push(type);
 
         const team = room.teams[teamId];
         if (type === 'up') {
             team.votes.up++;
-            team.price += PRICE_IMPACT.VOTE_UP;
+            team.price = Math.max(0, Math.round((team.price + PRICE_IMPACT.VOTE_UP) * 100) / 100);
+        } else if (type === 'hold') {
+            team.votes.hold = (team.votes.hold || 0) + 1;
+            // 관망은 주가 변동 없음
         } else if (type === 'down') {
             team.votes.down++;
-            team.price += PRICE_IMPACT.VOTE_DOWN;
+            team.price = Math.max(0, Math.round((team.price + PRICE_IMPACT.VOTE_DOWN) * 100) / 100);
         }
-
-        // 주가 0원 이하 방지
-        if (team.price < 0) team.price = 0;
         
         team.history.push(team.price);
 
-        // 이유가 있으면 채팅으로 전송 (모둠 정보 포함)
+        const voteCount = student.presentationVotes[teamId].count;
+
+        // 모든 방 인원에게 가격 업데이트 알림
+        io.to(roomCode).emit('priceUpdated', { teamId, price: team.price, history: team.history, votes: team.votes });
+
+        // 해당 학생에게 투표 카운트 응답
+        socket.emit('voteConfirmed', {
+            teamId,
+            type,
+            count: voteCount,
+            remaining: MAX_VOTES_PER_PRESENTATION - voteCount
+        });
+
+        // 10번 모두 채웠으면 사후 평가 요청 이벤트 발송
+        if (voteCount >= MAX_VOTES_PER_PRESENTATION) {
+            socket.emit('requestPostEval', { teamId, teamName: team.name });
+        }
+    });
+
+    // 6. 학생: 사후 평가 이유 제출
+    socket.on('submitPostEval', ({ roomCode, teamId, reason }) => {
+        const room = rooms[roomCode];
+        if (!room) return;
+
+        const student = room.students[socket.id];
+        if (!student) return;
+
+        if (!student.postEvalReasons) student.postEvalReasons = {};
+        student.postEvalReasons[teamId] = reason;
+
+        const team = room.teams[teamId];
+
+        // 채팅으로도 기록 (투자 분석 보고서 데이터)
         if (reason && reason.trim() !== '') {
             const chatMsg = {
                 sender: `${student.studentId} ${student.studentName}`,
                 message: reason,
-                type: type,
+                type: 'eval',
                 teamId: teamId,
-                teamName: team.name
+                teamName: team ? team.name : teamId
             };
             room.chats.push(chatMsg);
             io.to(roomCode).emit('newChat', chatMsg);
         }
 
-        // 모든 방 인원에게 가격 업데이트 알림
-        io.to(roomCode).emit('priceUpdated', { teamId, price: team.price, history: team.history, votes: team.votes });
+        socket.emit('postEvalSubmitted', { teamId });
     });
 
-    // 6. 학생: 채팅 (발표 중에만 허용, 모둠 정보 포함)
-    socket.on('chatMessage', ({ roomCode, message }) => {
-        const room = rooms[roomCode];
-        if (!room) return;
-        // 발표 중이 아니면 채팅 불가
-        if (room.phase !== 'presentation') return;
-
-        const student = room.students[socket.id];
-        if (!student) return;
-
-        const presentingTeam = room.currentPresentation ? room.teams[room.currentPresentation] : null;
-        const chatMsg = {
-            sender: `${student.studentId} ${student.studentName}`,
-            message: message,
-            type: 'neutral',
-            teamId: room.currentPresentation || null,
-            teamName: presentingTeam ? presentingTeam.name : null
-        };
-        room.chats.push(chatMsg);
-        io.to(roomCode).emit('newChat', chatMsg);
-    });
-
-    // 7. 학생: 주식 매수/매도 (매매 단계에만 허용)
-    socket.on('trade', ({ roomCode, teamId, action, amount }, callback) => {
-        const room = rooms[roomCode];
-        if (!room) return;
-        
-        // 매매 단계가 아닐 때는 거래 불가
-        if (room.phase !== 'trading') {
-            return callback({ success: false, message: '현재 매매 단계가 아닙니다. 교사의 매매 시작 안내를 기다려주세요.' });
-        }
-
-        const student = room.students[socket.id];
-        const team = room.teams[teamId];
-        if (!student || !team) return;
-
-        const qty = parseInt(amount);
-        if (isNaN(qty) || qty <= 0) return;
-
-        let cost = team.price * qty;
-        
-        if (action === 'buy') {
-            if (student.cash < cost) {
-                return callback({ success: false, message: '현금이 부족합니다.' });
-            }
-            student.cash -= cost;
-            student.portfolio[teamId] += qty;
-            team.price += PRICE_IMPACT.BUY * qty;
-        } else if (action === 'sell') {
-            if (student.portfolio[teamId] < qty) {
-                return callback({ success: false, message: '보유 주식이 부족합니다.' });
-            }
-            student.cash += cost;
-            student.portfolio[teamId] -= qty;
-            team.price += PRICE_IMPACT.SELL * qty;
-        } else {
-            return callback({ success: false, message: '잘못된 거래 요청입니다.' });
-        }
-
-        // 주가 0원 이하 방지
-        if (team.price < 0) team.price = 0;
-        team.history.push(team.price);
-
-        // 업데이트 된 가격 방송
-        io.to(roomCode).emit('priceUpdated', { teamId, price: team.price, history: team.history, votes: team.votes });
-        
-        // 학생 본인에게 거래 완료 및 자산 업데이트 응답
-        callback({ success: true, cash: student.cash, portfolio: student.portfolio });
-    });
-
-    // 8. 교사 방의 현재 상태 요청 (재접속 포함)
+    // 7. 교사 방의 현재 상태 요청 (재접속 포함)
     socket.on('requestRoomState', ({ roomCode, role: reqRole }, callback) => {
         const room = rooms[roomCode];
         if (room) {
             if (reqRole === 'teacher') {
-                // 교사가 페이지를 새로고침 했을 때 host 갱신 및 방 재참가
                 room.host = socket.id;
                 socket.join(roomCode);
                 socket.roomCode = roomCode;
@@ -312,6 +287,36 @@ io.on('connection', (socket) => {
         } else {
             callback({ success: false });
         }
+    });
+
+    // 8. 세션 복원: JSON 파일에서 방 데이터 복구 (같은 방 코드로)
+    socket.on('restoreSession', ({ roomCode, sessionData }, callback) => {
+        roomCode = roomCode.toUpperCase();
+
+        // 기존 방이 있으면 병합, 없으면 새로 생성
+        if (!rooms[roomCode]) {
+            rooms[roomCode] = {
+                host: socket.id,
+                initialCash: sessionData.initialCash || 1000.00,
+                teams: sessionData.teams || {},
+                students: sessionData.students || {},
+                currentPresentation: null,
+                phase: 'waiting',
+                chats: sessionData.chats || []
+            };
+        } else {
+            // 기존 방에 저장된 데이터 병합 (주가 이력, 투표 기록 보존)
+            const room = rooms[roomCode];
+            room.teams = sessionData.teams || room.teams;
+            // 학생 데이터는 유지 (재접속한 학생 우선)
+        }
+
+        socket.join(roomCode);
+        socket.roomCode = roomCode;
+        socket.role = 'teacher';
+        rooms[roomCode].host = socket.id;
+
+        callback({ success: true, roomCode, roomData: rooms[roomCode] });
     });
 
     socket.on('disconnect', () => {

@@ -48,9 +48,7 @@ io.on('connection', (socket) => {
         let roomCode = generateRoomCode();
         if (customRoomCode && customRoomCode.trim() !== '') {
             roomCode = customRoomCode.trim().toUpperCase();
-            if (rooms[roomCode]) {
-                return callback({ success: false, message: '이미 사용 중인 방 코드입니다. 다른 코드를 입력하세요.' });
-            }
+            // 같은 코드로 재생성 시 기존 방 덮어쓰기 허용 (오류 없이 새로 시작)
         }
         
         const teams = {};

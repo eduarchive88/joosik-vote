@@ -77,18 +77,15 @@ function updateClickDot(index, type) {
     if (type === 'down') dot.classList.add('used-down');
 }
 
-// ─── 게임 단계별 UI 전환 ──────────────────────────────────────────────
+// ─── 게임 단계 UI 업데이트 ───────────────────────────────────────────
 function updatePhaseUI(phase, presentingTeamId) {
-    const waitingBanner       = document.getElementById('waitingBanner');
     const presentationSection = document.getElementById('presentationSection');
-    const tradingBanner       = document.getElementById('tradingBanner');
+    const waitingBanner       = document.getElementById('waitingBanner');
     const endedBanner         = document.getElementById('endedBanner');
     const badge               = document.getElementById('phaseBadge');
 
-    // 모두 숨기고 시작
-    waitingBanner.classList.add('hidden');
     presentationSection.classList.add('hidden');
-    tradingBanner.classList.add('hidden');
+    waitingBanner.classList.add('hidden');
     endedBanner.classList.add('hidden');
 
     if (phase === 'presentation' && presentingTeamId) {
@@ -102,18 +99,16 @@ function updatePhaseUI(phase, presentingTeamId) {
         // 새로운 발표 시작 시 카운터 초기화
         currentVoteRecord = { count: 0, types: [] };
         initClickCounter();
-    } else if (phase === 'waiting' || phase === 'presentation') {
-        waitingBanner.classList.remove('hidden');
-        badge.textContent = '⏳ 대기 중';
-        badge.className = 'text-xs font-bold px-2 py-1 rounded-full bg-gray-600 text-gray-300';
-    } else if (phase === 'trading') {
-        tradingBanner.classList.remove('hidden');
-        badge.textContent = '💹 평가 중';
-        badge.className = 'text-xs font-bold px-2 py-1 rounded-full bg-yellow-500 text-gray-900';
     } else if (phase === 'ended') {
         endedBanner.classList.remove('hidden');
         badge.textContent = '🏁 종료';
         badge.className = 'text-xs font-bold px-2 py-1 rounded-full bg-red-700 text-white';
+        // 학생 사후평가 모달 표시 (아직 안 했다면)
+        showPostEvalModalIfNeeded();
+    } else {
+        waitingBanner.classList.remove('hidden');
+        badge.textContent = '⏳ 대기 중';
+        badge.className = 'text-xs font-bold px-2 py-1 rounded-full bg-gray-600 text-gray-300';
     }
 
     renderMarket();

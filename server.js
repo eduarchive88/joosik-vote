@@ -162,12 +162,12 @@ io.on('connection', (socket) => {
         });
     });
 
-    // 4. 교사: 게임 단계 전환 (매매 시작 / 매매 종료)
+    // 4. 교사: 게임 단계 전환 (평가 종료)
     socket.on('setPhase', ({ roomCode, phase }, callback) => {
         const room = rooms[roomCode];
         if (!room || room.host !== socket.id) return;
 
-        if (phase === 'trading') {
+        if (phase === 'ended') {
             room.currentPresentation = null;
         }
         room.phase = phase;

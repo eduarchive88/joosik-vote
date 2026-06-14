@@ -23,21 +23,20 @@ const colors = [
 // ─── 게임 단계 UI 업데이트 ───────────────────────────────────────────
 function updatePhaseUI(phase) {
     const badge = document.getElementById('phaseBadge');
-    const startBtn = document.getElementById('startTradingBtn');
     const endBtn = document.getElementById('endTradingBtn');
 
     const phaseMap = {
         waiting:      { text: '⏳ 대기 중',      cls: 'bg-gray-600 text-gray-300' },
         presentation: { text: '🎤 발표 진행 중', cls: 'bg-blue-600 text-white animate-pulse' },
-        trading:      { text: '💹 매매 단계',    cls: 'bg-yellow-500 text-gray-900' },
         ended:        { text: '🏁 종료',         cls: 'bg-red-700 text-white' }
     };
     const p = phaseMap[phase] || phaseMap.waiting;
     badge.textContent = p.text;
     badge.className = `text-sm font-bold px-3 py-1 rounded-full ${p.cls}`;
 
-    startBtn.classList.toggle('hidden', phase === 'trading' || phase === 'ended');
-    endBtn.classList.toggle('hidden', phase !== 'trading');
+    if (endBtn) {
+        endBtn.classList.toggle('hidden', phase === 'ended');
+    }
 }
 
 // ─── 차트 초기화 ──────────────────────────────────────────────────────
@@ -207,7 +206,7 @@ function appendChatDOM(chat) {
 
 // ─── 게임 단계 전환 (교사 → 서버) ───────────────────────────────────
 window.setPhase = function(phase) {
-    const confirmMsg = phase === 'trading' ? '매매 단계를 시작하시겠습니까? 발표 단계가 종료됩니다.' : '평가를 종료하고 최종 결과를 확정하시겠습니까?';
+    const confirmMsg = '모든 발표를 마치고 최종 평가를 종료하시겠습니까? (이후 학생들의 사후 평가가 진행됩니다)';
     if (!confirm(confirmMsg)) return;
     socket.emit('setPhase', { roomCode, phase }, (res) => {
         if (res && res.success) {
